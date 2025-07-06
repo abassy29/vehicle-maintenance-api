@@ -1,1 +1,3 @@
-data/vehicle_maintenance_data.csv
+nltk.download('stopwords')
+nltk.download('wordnet')
+nltk.download('omw-1.4')

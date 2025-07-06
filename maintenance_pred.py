@@ -63,8 +63,8 @@ if __name__ == "__main__":
     df[num_cols] = scaler.fit_transform(df[num_cols])
 
     # Save encoders and scaler
-    joblib.dump(encoders, 'label_encoders.joblib')
-    joblib.dump(scaler, 'scaler.joblib')
+    joblib.dump(encoders, 'model/label_encoders.joblib')
+    joblib.dump(scaler, 'model/scaler.joblib')
 
     # Split the data into features and target variable
     features, target = features_target(df)
@@ -85,7 +85,6 @@ if __name__ == "__main__":
 
     # Save the model
     joblib.dump(rf_model, 'model/random_forest_model.joblib')
-    # Load the model
 
 
 

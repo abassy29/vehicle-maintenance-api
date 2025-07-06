@@ -136,6 +136,64 @@ def predict_days(input: RegressionInput):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+
+#------------------------------------
+# . Driver report analysis endpoint
+from pydantic import BaseModel
+import joblib
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from text_utils import preprocess
+
+
+# Load NLP models
+category_model = joblib.load("model/incident_classifier_lr_fullprep.pkl")
+urgency_model  = joblib.load("model/incident_urgency_lr_fullprep.pkl")
+vectorizer     = joblib.load("model/tfidf_vectorizer_fullprep.pkl")
+
+# Preprocessing
+stop_words = set(stopwords.words('english'))
+stop_words.update(['car', 'vehicle'])
+lemmatizer = WordNetLemmatizer()
+slang_map = {
+    "shakin": "shaking",
+    "ride": "car",
+    "engin": "engine",
+    "knoking": "knocking"
+}
+
+def preprocess(text: str) -> str:
+    text = text.lower()
+    tokens = text.split()
+    tokens = [slang_map.get(tok, tok) for tok in tokens]
+    text = ' '.join(tokens)
+    text = re.sub(r'[^a-z\s]', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    tokens = text.split()
+    tokens = [lemmatizer.lemmatize(tok) for tok in tokens if tok not in stop_words]
+    return ' '.join(tokens)
+
+class DriverReport(BaseModel):
+    report_text: str
+
+@app.post("/analyze_report")
+def analyze_report(data: DriverReport):
+    try:
+        cleaned = preprocess(data.report_text)
+        tfidf   = vectorizer.transform([cleaned])
+        issue   = category_model.predict(tfidf)[0]
+        urgency = urgency_model.predict(tfidf)[0]
+        return {
+            "predicted_issue": issue,
+            "predicted_urgency": urgency
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 # ---------------------------
 # 6. Health check
 # ---------------------------
@@ -145,3 +203,5 @@ def root():
 
 
 #uvicorn api.api:app --reload
+
+#ngrok http 8000
