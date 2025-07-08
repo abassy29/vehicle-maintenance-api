@@ -14,7 +14,7 @@ import pandas as pd
 
 def load_csv(path):
     df = pd.read_csv(path)
-    df = df.drop(columns=['Warranty_Expiry_Date',"Mileage","Maintenance_History","Owner_Type","Insurance_Premium","Service_History","Fuel_Efficiency"])
+    df = df.drop(columns=['Warranty_Expiry_Date',"Mileage","Maintenance_History","Owner_Type","Insurance_Premium","Service_History","Fuel_Efficiency", "Accident_History"])
     df['Last_Service_Date'] = pd.to_datetime(df['Last_Service_Date'])
     df['Days_Since_Last_Service'] = (pd.Timestamp.today() - df['Last_Service_Date']).dt.days
     df = df.drop(columns=['Last_Service_Date'])
