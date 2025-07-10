@@ -239,52 +239,124 @@ def analyze_report(data: DriverReport):
 # Driver urgency analysis chart endpoint
 from fastapi.responses import StreamingResponse
 from io import BytesIO
-
 from typing import List
+from pydantic import BaseModel, validator
+import pandas as pd
+import matplotlib.pyplot as plt
 
 class UrgencyList(BaseModel):
-    predictions: List[int]
+    predictions: List[str]
 
+    @validator('predictions', each_item=True)
+    def check_valid(cls, v):
+        if v not in {'Low', 'Medium', 'High'}:
+            raise ValueError(f"Invalid urgency '{v}'. Must be one of: Low, Medium, High.")
+        return v
 
 @app.post("/urgency_chart", response_class=StreamingResponse)
 def generate_chart(data: UrgencyList):
     """
-    Accepts a list of predicted urgency values (0=Low, 1=Medium, 2=High),
+    Accepts a list of predicted urgency strings ("Low", "Medium", "High"),
     and returns a bar chart showing the distribution.
     """
-    urgency_map = {0: 'Low', 1: 'Medium', 2: 'High'}
-    urgencies = [urgency_map.get(p, 'Unknown') for p in data.predictions]
-
-    df = pd.DataFrame({'urgency': urgencies})
-    counts = df['urgency'].value_counts().reindex(['Low', 'Medium', 'High'], fill_value=0)
+    # Build counts in the fixed order
+    df = pd.DataFrame({'urgency': data.predictions})
+    counts = df['urgency'] \
+        .value_counts() \
+        .reindex(['Low', 'Medium', 'High'], fill_value=0)
 
     plt.style.use("seaborn-v0_8-darkgrid")
     fig, ax = plt.subplots(figsize=(7, 5))
-    bars = ax.bar(counts.index, counts.values, color=['#2ecc40', '#ffb347', '#ff4136'], width=0.6)
+    bars = ax.bar(
+        counts.index,
+        counts.values,
+        color=['#2ecc40', '#ffb347', '#ff4136'],
+        width=0.6
+    )
 
     ax.set_title('Reports Urgency Levels Count', fontsize=16, fontweight='bold')
-    #ax.set_xlabel('Urgency Level', fontsize=13)
     ax.set_ylabel('Number of Reports', fontsize=13)
-    ax.tick_params(axis='x', labelsize=12, rotation=0)
+    ax.tick_params(axis='x', labelsize=12)
     ax.tick_params(axis='y', labelsize=12)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
 
-    # Add value labels on top of bars
     for bar in bars:
         height = bar.get_height()
-        ax.annotate(f'{int(height)}',
-                    xy=(bar.get_x() + bar.get_width() / 2, height),
-                    xytext=(0, 5),  # 5 points vertical offset
-                    textcoords="offset points",
-                    ha='center', va='bottom', fontsize=12, fontweight='bold')
+        ax.annotate(
+            f'{int(height)}',
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 5),
+            textcoords="offset points",
+            ha='center', va='bottom',
+            fontsize=12, fontweight='bold'
+        )
 
     plt.tight_layout()
     buf = BytesIO()
     plt.savefig(buf, format='png', bbox_inches='tight')
     buf.seek(0)
-    plt.close()
+    plt.close(fig)
+
     return StreamingResponse(buf, media_type='image/png')
+
+
+from fastapi.responses import StreamingResponse
+from io import BytesIO
+from typing import List
+from pydantic import BaseModel
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# ---------------------------
+# Request schema for costs
+# ---------------------------
+class CostsOverTime(BaseModel):
+    months: List[str]            # e.g. ["Jan", "Feb", "Mar", …]
+    fuel_costs: List[float]      # same length as months
+    maintenance_costs: List[float]  # same length as months
+
+# ---------------------------
+# New Costs Chart endpoint
+# ---------------------------
+@app.post("/costs_chart", response_class=StreamingResponse)
+def generate_costs_chart(data: CostsOverTime):
+    """
+    Accepts:
+      - data.months: list of month labels
+      - data.fuel_costs: list of fuel costs per month
+      - data.maintenance_costs: list of maintenance costs per month
+
+    Returns: PNG time-series chart plotting both series.
+    """
+    # Build DataFrame
+    df = pd.DataFrame({
+        "Month": data.months,
+        "Fuel Cost": data.fuel_costs,
+        "Maintenance Cost": data.maintenance_costs
+    })
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(df["Month"], df["Fuel Cost"], marker='o', label="Fuel Cost")
+    ax.plot(df["Month"], df["Maintenance Cost"], marker='o', label="Maintenance Cost")
+
+    ax.set_title("Monthly Fuel vs. Maintenance Costs", fontsize=16, fontweight='bold')
+    ax.set_xlabel("Month", fontsize=13)
+    ax.set_ylabel("Cost (in your currency)", fontsize=13)
+    ax.legend()
+    ax.grid(True, which='both', linestyle='--', linewidth=0.5)
+
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+
+    # Return as PNG
+    buf = BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    plt.close(fig)
+    return StreamingResponse(buf, media_type="image/png")
+
 
 # ---------------------------
 # 6. Health check

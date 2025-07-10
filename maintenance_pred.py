@@ -14,7 +14,7 @@ import pandas as pd
 
 def load_csv(path):
     df = pd.read_csv(path)
-    df = df.drop(columns=['Warranty_Expiry_Date',"Mileage","Maintenance_History","Owner_Type","Insurance_Premium","Service_History","Fuel_Efficiency", "Accident_History"])
+    df = df.drop(columns=['Warranty_Expiry_Date',"Mileage","Maintenance_History","Owner_Type","Insurance_Premium",])
     df['Last_Service_Date'] = pd.to_datetime(df['Last_Service_Date'])
     df['Days_Since_Last_Service'] = (pd.Timestamp.today() - df['Last_Service_Date']).dt.days
     df = df.drop(columns=['Last_Service_Date'])
@@ -63,8 +63,8 @@ if __name__ == "__main__":
     df[num_cols] = scaler.fit_transform(df[num_cols])
 
     # Save encoders and scaler
-    joblib.dump(encoders, 'model/label_encoders.joblib')
-    joblib.dump(scaler, 'model/scaler.joblib')
+    joblib.dump(encoders, 'test/label_encoders.joblib')
+    joblib.dump(scaler, 'test/scaler.joblib')
 
     # Split the data into features and target variable
     features, target = features_target(df)
@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
 
     # Save the model
-    joblib.dump(rf_model, 'model/random_forest_model.joblib')
+    joblib.dump(rf_model, 'test/random_forest_model.joblib')
 
 
 

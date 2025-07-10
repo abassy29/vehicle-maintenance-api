@@ -12,7 +12,7 @@ from nltk.stem import WordNetLemmatizer
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from text_utils import preprocess
 
 # Uncomment and run once to download NLTK data:
@@ -48,62 +48,60 @@ slang_map = {
 #     return ' '.join(tokens)
 
 def main():
-    # 2. Load dataset
-    df = pd.read_csv('data/driver_reports_updated.csv')
-    X = df['report_text']
-    y = df['category']
-    y_urg = df['urgency']
+    # 1. Load datasets
+    df_train = pd.read_csv('data/driver_reports_updated.csv')
+    df_test  = pd.read_csv('data/vehicle_issues_test.csv')
 
-    # 3. Split into train/test (stratified on both y and y_urg)
-    X_train, X_test, y_train, y_test, y_train_urg, y_test_urg = train_test_split(
-        X, y, y_urg,
-        test_size=0.2,
-        random_state=42,
-        stratify=y  # primary stratification on categories
+    X_train, y_train_cat, y_train_urg = (
+        df_train['report_text'],
+        df_train['category'],
+        df_train['urgency'],
+    )
+    X_test, y_test_cat, y_test_urg = (
+        df_test['report_text'],
+        df_test['category'],
+        df_test['urgency'],
     )
 
-    # 4. TF‑IDF vectorizer with custom preprocessing
+    # 2. TF‑IDF vectorizer (fit on train only)
     vectorizer = TfidfVectorizer(
         preprocessor=preprocess,
-        stop_words=None,
         max_df=0.8,
         min_df=2
     )
     X_train_tfidf = vectorizer.fit_transform(X_train)
     X_test_tfidf  = vectorizer.transform(X_test)
 
-    # 5. Train category classifier
+    # 3. Train category classifier
     cat_model = LogisticRegression(max_iter=1000, class_weight='balanced')
-    cat_model.fit(X_train_tfidf, y_train)
+    cat_model.fit(X_train_tfidf, y_train_cat)
 
-    # 6. Train urgency classifier
+    # 4. Train urgency classifier
     urg_model = LogisticRegression(max_iter=1000, class_weight='balanced')
     urg_model.fit(X_train_tfidf, y_train_urg)
 
-    # 7. Evaluate both
-    print("\n=== Category Classification Report ===")
-    y_pred = cat_model.predict(X_test_tfidf)
-    print(classification_report(y_test, y_pred))
+    # 5. Evaluate on the TEST set only
+    print("\n=== Category Classifier Evaluation (TEST SET) ===")
+    y_pred_cat = cat_model.predict(X_test_tfidf)
+    print(classification_report(y_test_cat, y_pred_cat))
+    print("Confusion Matrix:\n", confusion_matrix(y_test_cat, y_pred_cat))
+    print("Accuracy:", accuracy_score(y_test_cat, y_pred_cat))
 
-    print("\n=== Category Confusion Matrix ===")
-    cm = confusion_matrix(y_test, y_pred, labels=cat_model.classes_)
-    print(pd.DataFrame(cm, index=cat_model.classes_, columns=cat_model.classes_))
-
-    print("\n=== Urgency Classification Report ===")
+    print("\n=== Urgency Classifier Evaluation (TEST SET) ===")
     y_pred_urg = urg_model.predict(X_test_tfidf)
     print(classification_report(y_test_urg, y_pred_urg))
+    print("Confusion Matrix:\n", confusion_matrix(y_test_urg, y_pred_urg))
+    print("Accuracy:", accuracy_score(y_test_urg, y_pred_urg))
 
-    # 8. Ensure output directory exists
+    # Show the predictions
+    print("Urgency predictions for test set:", list(y_pred_urg))
+
+    # 6. Save artifacts for deployment
     os.makedirs('model', exist_ok=True)
-
-    # 9. Save all artifacts
-    joblib.dump(vectorizer, 'model/tfidf_vectorizer_fullprep.pkl')
-    joblib.dump(cat_model, 'model/incident_classifier_lr_fullprep.pkl')
-    joblib.dump(urg_model, 'model/incident_urgency_lr_fullprep.pkl')
-
+    joblib.dump(vectorizer, 'test/tfidf_vectorizer.pkl')
+    joblib.dump(cat_model,   'test/incident_classifier.pkl')
+    joblib.dump(urg_model,   'test/incident_urgency_classifier.pkl')
     print("\nSaved artifacts to ./model/")
 
 if __name__ == '__main__':
     main()
-
-#pip install pandas scikit-learn joblib nltk
